@@ -1,0 +1,167 @@
+---
+title: "goal_organization"
+author: "Bernice Cheung"
+date: "3/9/2020"
+output: html_document
+---
+### set the enviornment
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(svDialogs)
+```
+
+### load data & the log
+
+Before downloading data from Qualtrics, data from people who didn't consent are filtered out. All data is downloaded directly to the folder ../FYP_rawdata
+```{r}
+# extract file information from the raw data folder
+data_files <- file.info(Sys.glob("../FYP_rawdata/*.csv"))
+
+# identify the latest created file
+latest_file <- row.names(data_files)[which.max(data_files[["ctime"]])]
+
+# load the data
+df <- read.csv(latest_file)
+
+# load the log
+log <- read.csv("../FYP_rawdata/randomized_goals/randGoalLog.csv")
+
+```
+
+### set parameters for the randomization
+```{r}
+# Who is doing this randomization? 
+researcher <- "BC"
+
+# Who are the RAs? 
+raNames <- c("JM", "VH", "AA", "AJ", "EO", "KW")
+
+# How many RAs are required to rate a given item? 
+teamSize <- 2
+```
+
+
+### organize goals
+```{r}
+# select relevant columns
+goalDf <- df %>%
+  select(grep("goal_list", names(df)))
+
+# add the id column
+goalDf$id <- df$id
+
+# get rid of the first 2 rows that are not goals
+goalDf <- goalDf[-c(1,2),]
+
+```
+
+
+### check the log
+```{r}
+# check the ID number of the last recorded case
+lastId <- tail(log$lastSubjectNumber,1)
+
+# check the row number of the last recorded case
+lastRow <- which(goalDf$id == lastId)
+
+# extract the total number of subject and goals
+totalSubject <- tail(log$totalSubject,1)
+totalGoals <- tail(log$totalGoals,1)
+```
+
+### randomize new goals
+```{r}
+# subset new goals
+newDf <- goalDf[(lastRow+1):nrow(goalDf),] %>%
+  select(-id)
+
+# vectorize goals
+newGoal <- as.vector(as.matrix(newDf))
+
+# get rid off emply goal
+newGoal <- newGoal[newGoal!=""]
+
+# randomize goals
+randGoal <- as.vector(sample(newGoal))
+```
+
+### generate RA pairs
+```{r}
+# randomize the order of the RA names
+raNames <- sample(raNames)
+
+# extract the total number of RAs
+raNum <- length(raNames)
+  
+# generate all pairs of combination
+raPairs <- combn(raNames, teamSize)
+
+# transpose the matrix
+raPairs <- t(raPairs)
+
+# extract the number of pairs
+pairNum <- nrow(raPairs)
+
+# randomize the order of the ra pairs
+raPairs <- raPairs[sample(pairNum),]
+```
+
+### assign goals to each pair
+```{r}
+# modify the length of the goals so that it can be devided by the number of pairs. The additional items will be NAs. 
+length(randGoal) <- prod(dim(matrix(randGoal, nrow = pairNum)))
+
+# assign goals across all pairs and transform the result into a dataframe 
+goalMatrix <- matrix(randGoal, nrow = pairNum)
+goalMatrix <- as.data.frame(goalMatrix)
+
+# combine the output with the ra pairs
+assignDf <- cbind(raPairs, goalMatrix)
+```
+
+### extract goals for each RA
+```{r}
+# calculate the maximum number of items assigned for each RA
+rowMax <- length(randGoal) * (teamSize/raNum)
+
+# initialize an empty dataframe where each RA is represented by a column
+raDf <- data.frame(matrix(nrow = rowMax, ncol = raNum))
+colnames(raDf) <- raNames
+
+# loop through each RA and extract the goals assigned to the RA pairs that this RA belongs 
+for (raIdx in 1:length(raNames)){
+  ra <- raNames[raIdx]
+  pairIdx <- which(raPairs == ra, arr.ind = T)[,1] # see which pair includes this RA
+  goals <- goalMatrix[pairIdx,] # extract the goals from these pairs
+  raGoals <- as.vector(as.matrix(goals)) # vectorize the goals 
+  raDf[,raIdx] <- sample(raGoals) # randomize the order
+}
+```
+
+### update the log
+```{r}
+newLog <- data.frame(researcher = researcher,
+                     date = as.character(Sys.Date()),
+                     lastSubjectNumber = tail(goalDf$id, 1),
+                     nSubject = nrow(newDf),
+                     nGoals = length(newGoal),
+                     totalSubject = totalSubject + nrow(newDf),
+                     totalGoals = totalGoals + length(newGoal))
+
+updatedLog <- rbind(log, newLog)
+```
+
+
+### write the files
+```{r}
+# write the randomized output
+write.csv(raDf, paste0("../FYP_rawdata/randomized_goals/randomizeGoal_",Sys.Date(),".csv"), row.names = F)
+
+# write the updated log
+write.csv(updatedLog, "../FYP_rawdata/randomized_goals/randGoalLog.csv", row.names = F)
+```
+
