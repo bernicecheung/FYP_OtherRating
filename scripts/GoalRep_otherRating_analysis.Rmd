@@ -1,0 +1,56 @@
+---
+title: "GoalRep_otherRating_analysis"
+author: "Bernice Cheung"
+date: "4/14/2021"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, echo=FALSE,warning=FALSE,message=FALSE}
+library(tidyverse)
+# library(psych)
+# library(ggplot2)
+library(stringr)
+# library(knitr)
+# library(lme4)
+# library(nFactors)
+# library(corrplot)
+# library(janitor)
+# library(kableExtra)
+# library(GPArotation)
+library(here)
+library(readbulk)
+library(readxl)
+```
+
+load data
+```{r}
+sona2_raw <- read_bulk(directory = here("coded_data", "SONA2"), fun = read_excel, sheet = 1, col_names = T, n_max = 180)
+```
+
+recode data
+```{r}
+# group variables based on weather it's unipolar / bipolar
+uni_col <- c("measurability", "meaningfulness", "importance", "instrumentality", "affordance", "clarity","control", "difficulty")
+bi_col <- c("social_desirability", "external_motivation", "introjected_motivation", "identified_motivation", "intrinsic_motivation", "ought_motivation", "ideal_motivation", "basic_needs", "commonality", "visibility", "external_importance")
+
+# recode variables
+sona2_clean <-sona2_raw %>%
+  mutate_at(vars(uni_col), funs(recode(.,"1: Not at all" = 1, "2" = 2, "3" = 3, "4:Neutral" = 4, "5" = 5, "6" = 6, "7: Very much" = 7, "99: I can't tell" = 99))) %>%
+  mutate_at(vars(bi_col), funs(recode(.,"1: Strongly disagree" = 1, "2" = 2, "3" = 3, "4: Neutral" = 4, "5" = 5, "6" = 6, "7: Strongly agree" = 7, "99: I can't tell" = 99))) %>%
+  mutate_at(vars(specificity), funs(recode(.,"1: Very general" = 1, "2" = 2, "3" = 3, "4: Neutral" = 4, "5" = 5, "6" = 6, "7" = 7, "99: I can't tell" = 99))) %>%
+  mutate_at(vars(approach_avoidance), funs(recode(.,"1: An approach goal" = 1, "2" = 2, "3" = 3, "4: neither approach nor avoidance" = 4, "5" = 5, "6" = 6, "7: An avoidance goal" = 7, "99: I can't tell" = 99))) %>%
+  mutate_at(vars(attainment_maintenance), funs(recode(.,"1: An attainment goal" = 1, "2" = 2, "3" = 3, "4" = 4, "5" = 5, "6" = 6, "7: An maintenance goal" = 7, "99: I can't tell" = 99))) %>%
+  mutate_at(vars(attainability), funs(recode(.,"1: 0%" = 1, "2: 10%" = 2, "3: 20%" = 3, "4: 30%" = 4, "5: 40%" = 5, "6: 50%" = 6, "7: 60%" = 7, "8: 70%" = 8,"9: 80%" = 9,"10: 90%" = 10,"11: 100%" = 11,"99: I can't tell" = 99))) %>%
+  mutate_at(vars(c(attractiveness_achievement, attractiveness_progress)), funs(recode(.,"1: Not at all" = 1, "2: A little good" = 2, "3: Somewhat good" = 3, "4:Good" = 4, "5: Very good" = 5, "6: Great" = 6, "7: One of the best feelings" = 7,"99: I can't tell" = 99))) %>%
+  mutate_at(vars(construal_level), funs(recode(.,"1: low level" = 1, "2" = 2, "3" = 3, "4: mid level" = 4, "5" = 5, "6" = 6, "7: High Level" = 7, "99: I can't tell" = 99)))
+
+```
+
